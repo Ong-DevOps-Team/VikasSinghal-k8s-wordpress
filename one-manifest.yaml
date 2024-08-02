@@ -23,9 +23,9 @@ spec:
     storage: 11Gi
   accessModes:
     - ReadWriteMany
-  storageClassName: shared-storage
+  storageClassName: do-block-storage
   hostPath:
-    path: /mnt/data  # Example for local path; adjust for your storage provider
+    path: /mnt/data  # Replace with your actual storage solution
 
 ---
 apiVersion: v1
@@ -39,7 +39,7 @@ spec:
   resources:
     requests:
       storage: 11Gi
-  storageClassName: shared-storage
+  storageClassName: do-block-storage
 
 ---
 apiVersion: v1
@@ -126,7 +126,7 @@ spec:
   resources:
     requests:
       storage: 10Gi
-  storageClassName: shared-storage
+  storageClassName: do-block-storage
 
 ---
 apiVersion: apps/v1
