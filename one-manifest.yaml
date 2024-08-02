@@ -4,7 +4,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: wp-db-secrets
-  namespace: <new-namespace> # Update this with your new namespace
+  namespace: <new-namespace>
 
 type: Opaque
 
@@ -14,24 +14,39 @@ data:
 
 ---
 apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: shared-pv
+  namespace: <new-namespace>
+spec:
+  capacity:
+    storage: 11Gi
+  accessModes:
+    - ReadWriteMany
+  storageClassName: shared-storage
+  hostPath:
+    path: /mnt/data  # Example for local path; adjust for your storage provider
+
+---
+apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: mysql-volume
-  namespace: <new-namespace> # Update this with your new namespace
+  name: shared-volume
+  namespace: <new-namespace>
 spec:
   accessModes:
-  - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
-      storage: 1Gi
-  storageClassName: do-block-storage
+      storage: 11Gi
+  storageClassName: shared-storage
 
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: mysql-initdb-config
-  namespace: <new-namespace> # Update this with your new namespace
+  namespace: <new-namespace>
 data:
   init-db.sql: |
     CREATE DATABASE IF NOT EXISTS wordpress;
@@ -41,7 +56,7 @@ apiVersion: apps/v1
 kind: ReplicaSet
 metadata:
   name: mysql
-  namespace: <new-namespace> # Update this with your new namespace
+  namespace: <new-namespace>
   labels:
     app: mysql
 spec:
@@ -73,14 +88,14 @@ spec:
         ports:
           - containerPort: 3306
         volumeMounts:
-        - name: mysql-data
+        - name: shared-data
           mountPath: /var/lib/mysql
         - name: init-db
           mountPath: /docker-entrypoint-initdb.d
       volumes:
-      - name: mysql-data
+      - name: shared-data
         persistentVolumeClaim:
-          claimName: mysql-volume
+          claimName: shared-volume
       - name: init-db
         configMap:
           name: mysql-initdb-config
@@ -90,7 +105,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: mysql
-  namespace: <new-namespace> # Update this with your new namespace
+  namespace: <new-namespace>
 spec:
   ports:
   - port: 3306
@@ -104,21 +119,21 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: wordpress-volume
-  namespace: <new-namespace> # Update this with your new namespace
+  namespace: <new-namespace>
 spec:
   accessModes:
-  - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
       storage: 10Gi
-  storageClassName: do-block-storage
+  storageClassName: shared-storage
 
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: wordpress
-  namespace: <new-namespace> # Update this with your new namespace
+  namespace: <new-namespace>
 spec:
   replicas: 1
   selector:
@@ -139,9 +154,8 @@ spec:
             - name: wordpress-data
               mountPath: /var/www
           env:
-            # Annoyingly repetitive -- envFrom: is a nicer way to do this with a ConfigMap or Secret
             - name: WORDPRESS_DB_HOST
-              value: mysql.<new-namespace>.svc.cluster.local # Update this with your new namespace
+              value: mysql.<new-namespace>.svc.cluster.local
             - name: WORDPRESS_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -154,14 +168,14 @@ spec:
       volumes:
         - name: wordpress-data
           persistentVolumeClaim:
-            claimName: wordpress-volume
+            claimName: shared-volume
 
 ---
 kind: Service
 apiVersion: v1
 metadata:
   name: wordpress
-  namespace: <new-namespace> # Update this with your new namespace
+  namespace: <new-namespace>
 spec:
   type: ClusterIP
   selector:
@@ -180,7 +194,7 @@ spec:
 # spec:
 #   acme:
 #     server: https://acme-v02.api.letsencrypt.org/directory
-#     email: smtp.testing.devops@gmail.com
+#     email: smtp.testing.<new-namespace>@gmail.com
 #     privateKeySecretRef:
 #       name: letsencrypt-cluster-issuer-key
 #     solvers:
@@ -193,10 +207,10 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: wordpress-ingress
-  namespace: <new-namespace> # Update this with your new namespace
+  namespace: <new-namespace>
 spec:
   dnsNames:
-    - <new-domain> # Update this with your new domain
+    - <new-domain>
   secretName: nginx-wordpress-tls
   issuerRef:
     name: letsencrypt-cluster-issuer
@@ -207,17 +221,15 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: wordpress-ingress
-  namespace: <new-namespace> # Update this with your new namespace
+  namespace: <new-namespace>
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-cluster-issuer
     cert-manager.io/renew-before: 360h  # 15 days before expiration
-    # kubernetes.io/ingress.class: "nginx"
     nginx.ingress.kubernetes.io/rewrite-target: /
-    # nginx.ingress.kubernetes.io/ssl-redirect: "false"
 spec:
   ingressClassName: nginx
   rules:
-  - host: <new-domain> # Update this with your new domain
+  - host: <new-domain>
     http:
       paths:
       - path: /
@@ -229,5 +241,5 @@ spec:
               number: 80
   tls:
   - hosts:
-    - <new-domain> # Update this with your new domain
+    - <new-domain>
     secretName: nginx-wordpress-tls
