@@ -69,4 +69,17 @@ kubectl apply -f wp-mysql-secrets.yaml
   kubectl apply -f wordpress-ingress.yaml
   ```
 
+## Dynamic yaml file for New WP site
+
+### 1. Create a new namespace:
+  ```bash
+  kubectl create namespace <new-namespace>
+  ```
+
+
+### 2. Update the <new-domain> and <new-namespace> values in your configuration files.
+Apply the configuration files:
+  ```bash
+  kubectl apply -f filename.yaml
+  ```
 
